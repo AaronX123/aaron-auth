@@ -15,4 +15,6 @@ import java.util.Map;
 @Mapper
 public interface RoleDao extends BaseMapper<Role> {
 
+    @Select("SELECT id, name FROM role WHERE id = #{id}")
+    Role selectId(long id);
 }

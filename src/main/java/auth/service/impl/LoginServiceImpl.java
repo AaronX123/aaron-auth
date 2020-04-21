@@ -8,19 +8,22 @@ import aaron.common.utils.jwt.JwtUtil;
 import aaron.common.utils.jwt.UserPermission;
 import auth.common.AuthError;
 import auth.common.AuthException;
-import auth.dao.UserDao;
-import auth.dao.UserOnlineInfoDao;
+import auth.dao.*;
+import auth.pojo.dto.SpUser;
 import auth.pojo.dto.UserDto;
 import auth.pojo.model.*;
 import auth.service.LoginService;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.sun.org.apache.regexp.internal.RE;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * @author xiaoyouming
@@ -33,6 +36,18 @@ public class LoginServiceImpl implements LoginService {
     UserDao userDao;
 
     @Resource
+    UserRoleDao userRoleDao;
+
+    @Resource
+    RoleDao roleDao;
+
+    @Resource
+    RoleResourceDao roleResourceDao;
+
+    @Resource
+    ResourceDao resourceDao;
+
+    @Resource
     UserOnlineInfoDao userOnlineInfoDao;
 
     @Autowired
@@ -41,7 +56,7 @@ public class LoginServiceImpl implements LoginService {
     @Autowired
     CacheManager cacheManager;
 
-
+    @Transactional(rollbackFor = Exception.class)
     @Override
     public Map<String, Object> createToken(UserDto userDto) {
         UserPermission userPermission;
@@ -75,7 +90,7 @@ public class LoginServiceImpl implements LoginService {
         }
         // 更新token
         tokenCache.put(userPermission.getId(),token);
-        user = userDao.findById(userPermission.getId());
+        user = findById(userPermission.getId());
         Map<String,String> urlMap = new HashMap<>();
         for (Role role : user.getRoles()) {
             for (auth.pojo.model.Resource resource : role.getResources()) {
@@ -88,6 +103,40 @@ public class LoginServiceImpl implements LoginService {
         Map<String,Object> data = new HashMap<>(1);
         data.put("token",token);
         return data;
+    }
+
+    private User findById(long id){
+        User user = userDao.selectId(id);
+        QueryWrapper<UserRole> userRoleQueryWrapper = new QueryWrapper<>();
+        userRoleQueryWrapper.eq("user_id",id);
+        List<UserRole> userRoleList = userRoleDao.selectList(userRoleQueryWrapper);
+        List<Role> roleList = new ArrayList<>();
+        for (UserRole userRole : userRoleList) {
+            roleList.add(roleDao.selectId(userRole.getRoleId()));
+        }
+        List<RoleResource> roleResourceList = new ArrayList<>();
+        for (Role role : roleList) {
+            QueryWrapper<RoleResource> roleResourceQueryWrapper = new QueryWrapper<>();
+            roleResourceQueryWrapper.eq("role_id",role.getId());
+            List<RoleResource> roleResource = roleResourceDao.selectList(roleResourceQueryWrapper);
+            roleResourceList.addAll(roleResource);
+        }
+        List<auth.pojo.model.Resource> resourceList = resourceDao.selectBatchIds(roleResourceList.stream().map(RoleResource::getResourceId).collect(Collectors.toList()));
+        user.setRoles(new HashSet<>(roleList));
+        for (Role role : roleList) {
+            Set<auth.pojo.model.Resource> set = new HashSet<>();
+            for (RoleResource roleResource : roleResourceList) {
+                if (role.getId().equals(roleResource.getRoleId())){
+                    for (auth.pojo.model.Resource resource : resourceList) {
+                        if (resource.getId().equals(roleResource.getResourceId())){
+                            set.add(resource);
+                        }
+                    }
+                }
+            }
+            role.setResources(set);
+        }
+        return user;
     }
 
     @Override
@@ -104,7 +153,14 @@ public class LoginServiceImpl implements LoginService {
     public List<UserMenu> getUserMenu(String token) {
         try {
             UserPermission userPermission = JwtUtil.parseJwt(token);
-            return userDao.getUserMenu(userPermission);
+            QueryWrapper<UserRole> userRoleQueryWrapper = new QueryWrapper<>();
+            userRoleQueryWrapper.eq("user_id",userPermission.getId());
+            UserRole userRole = userRoleDao.selectOne(userRoleQueryWrapper);
+            QueryWrapper<RoleResource> roleResourceQueryWrapper = new QueryWrapper<>();
+            roleResourceQueryWrapper.eq("role_id",userRole.getRoleId());
+            List<RoleResource> roleResourceList = roleResourceDao.selectList(roleResourceQueryWrapper);
+            List<auth.pojo.model.Resource> resourceList = resourceDao.listByIdList(roleResourceList.stream().map(RoleResource::getResourceId).collect(Collectors.toList()));
+            return CommonUtils.convertList(resourceList,UserMenu.class);
         } catch (Exception e) {
             throw new AuthException(StarterError.SYSTEM_ACCESS_INVALID);
         }
@@ -112,13 +168,15 @@ public class LoginServiceImpl implements LoginService {
 
     @Override
     public boolean logout(List<Long> ids) {
-        Cache cache = cacheManager.getCache(CacheConstants.USER_PERMISSION);
+        Cache cache = cacheManager.getCache(CacheConstants.TOKEN);
+        Cache resourceCache = cacheManager.getCache(CacheConstants.RESOURCE_MAP);
         for (Long id : ids) {
             Cache.ValueWrapper valueWrapper = cache.get(id);
             if (valueWrapper != null){
+                resourceCache.evict(id);
                 UserPermission userPermission;
                 try {
-                    userPermission = JwtUtil.parseJwt(String.valueOf(valueWrapper));
+                    userPermission = JwtUtil.parseJwt(String.valueOf(valueWrapper.get()));
                 } catch (Exception e) {
                     throw new AuthException(StarterError.SYSTEM_TOKEN_PARSE_ERROR);
                 }
@@ -133,4 +191,5 @@ public class LoginServiceImpl implements LoginService {
         }
         return true;
     }
+
 }

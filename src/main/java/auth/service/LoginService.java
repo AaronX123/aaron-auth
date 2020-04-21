@@ -1,6 +1,7 @@
 package auth.service;
 
 import auth.pojo.dto.UserDto;
+import auth.pojo.model.User;
 import auth.pojo.model.UserInfo;
 import auth.pojo.model.UserMenu;
 

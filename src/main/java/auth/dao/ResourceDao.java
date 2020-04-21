@@ -15,5 +15,12 @@ import java.util.Map;
  */
 @Mapper
 public interface ResourceDao extends BaseMapper<Resource> {
+    @Select("<script>" +
+            "SELECT * FROM resource WHERE id IN " +
+            "<foreach collection=\"ids\" item=\"id\" separator=\",\" close=\")\" open=\"(\">\n" +
+            "            #{id}\n" +
+            "        </foreach>" +
+            "</script>")
+    List<Resource> listByIdList(@Param("ids") List<Long> ids);
 
 }

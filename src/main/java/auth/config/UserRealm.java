@@ -6,6 +6,7 @@ import auth.dao.UserDao;
 import auth.pojo.model.Role;
 import auth.pojo.model.User;
 
+import auth.service.LoginService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.authc.*;
@@ -18,6 +19,7 @@ import org.apache.shiro.subject.Subject;
 import org.apache.shiro.util.ByteSource;
 
 import javax.annotation.Resource;
+import java.sql.Time;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
@@ -26,7 +28,7 @@ import java.util.Set;
 public class UserRealm extends AuthorizingRealm {
 
     @Resource
-    private UserDao userService;
+    private UserDao userDao;
 
     /**
      * 授权
@@ -64,14 +66,18 @@ public class UserRealm extends AuthorizingRealm {
     protected AuthenticationInfo doGetAuthenticationInfo(AuthenticationToken authenticationToken) throws AuthenticationException {
 
         System.out.println("执行认证");
-
+        long timeStamp = System.currentTimeMillis();
         UsernamePasswordToken token = (UsernamePasswordToken)authenticationToken;
-        System.out.println("UsernamePasswordToken:"+token);
-        User user = userService.findByCode(token.getUsername());
+        System.out.println("1 : " + (System.currentTimeMillis() - timeStamp));
+        timeStamp = System.currentTimeMillis();
+        User user = userDao.findByCode(token.getUsername());
+        System.out.println("2 : " + (System.currentTimeMillis() - timeStamp));
         if (user == null){
             throw new AuthException(AuthError.USER_NOT_EXIST);
         }
+        timeStamp = System.currentTimeMillis();
         ByteSource credentialsSalt = ByteSource.Util.bytes(user.getName());
+        System.out.println("3 : "+(System.currentTimeMillis() - timeStamp));
         return new SimpleAuthenticationInfo(user, user.getPassword(), credentialsSalt, getName());
     }
 
