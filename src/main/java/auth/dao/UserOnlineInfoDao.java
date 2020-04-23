@@ -16,14 +16,15 @@ import java.util.List;
 @Mapper
 public interface UserOnlineInfoDao extends BaseMapper<UserOnlineInfo> {
 
-    @Select("SELECT * FROM user_online_info WHERE state = 1")
+    @Select("SELECT * FROM user_online_info WHERE status = 1")
     List<UserOnlineInfo> listOnlineUser();
 
     @Select("<script>" +
-            "UPDATE user_online_info SET state = 0 WHERE user_id IN" +
+            "UPDATE user_online_info SET status = '0' WHERE user_id IN" +
             "<foreach collection=\"ids\" item=\"id\" separator=\",\" close=\")\" open=\"(\">\n" +
             "            #{id}\n" +
             "        </foreach>" +
             "</script>")
     boolean updateOnlineState(@Param("ids")List<Long> ids);
+
 }

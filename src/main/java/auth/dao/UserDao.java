@@ -38,4 +38,7 @@ public interface UserDao extends BaseMapper<User> {
 
     @Select("SELECT id, code, name, password,profile_picture FROM user WHERE id = #{id}")
     User selectId(long id);
+
+    @Select("SELECT 1 FROM user WHERE id = #{id}")
+    boolean exist(@Param("id") long id);
 }
