@@ -28,6 +28,8 @@ server:
   port: 8770
   servlet:
     context-path: /auth
+  #port: ${random.int[10000,65535]}
+
 eureka:
   instance:
     prefer-ip-address: false
@@ -45,3 +47,6 @@ aaron:
 
 mybatis-plus:
   mapper-locations: classpath:mapper/*.xml
+
+# 每1小时确认一次在线用户
+check.user: 0 0 0/1 * * ?
