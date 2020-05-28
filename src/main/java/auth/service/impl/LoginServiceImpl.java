@@ -103,6 +103,7 @@ public class LoginServiceImpl implements LoginService {
         return data;
     }
 
+
     private User findById(long id){
         User user = userDao.selectId(id);
         QueryWrapper<UserRole> userRoleQueryWrapper = new QueryWrapper<>();
@@ -153,12 +154,15 @@ public class LoginServiceImpl implements LoginService {
             UserPermission userPermission = JwtUtil.parseJwt(token);
             QueryWrapper<UserRole> userRoleQueryWrapper = new QueryWrapper<>();
             userRoleQueryWrapper.eq("user_id",userPermission.getId());
-            UserRole userRole = userRoleDao.selectOne(userRoleQueryWrapper);
-            QueryWrapper<RoleResource> roleResourceQueryWrapper = new QueryWrapper<>();
-            roleResourceQueryWrapper.eq("role_id",userRole.getRoleId());
-            List<RoleResource> roleResourceList = roleResourceDao.selectList(roleResourceQueryWrapper);
-            List<auth.pojo.model.Resource> resourceList = resourceDao.listByIdList(roleResourceList.stream().map(RoleResource::getResourceId).collect(Collectors.toList()));
-            return CommonUtils.convertList(resourceList,UserMenu.class);
+            List<UserRole> userRole = userRoleDao.selectList(userRoleQueryWrapper);
+            Set<auth.pojo.model.Resource> resourceSet = new LinkedHashSet<>();
+            for (UserRole role : userRole) {
+                QueryWrapper<RoleResource> roleResourceQueryWrapper = new QueryWrapper<>();
+                roleResourceQueryWrapper.eq("role_id",role.getRoleId());
+                List<RoleResource> roleResourceList = roleResourceDao.selectList(roleResourceQueryWrapper);
+                resourceSet.addAll(resourceDao.listByIdList(roleResourceList.stream().map(RoleResource::getResourceId).collect(Collectors.toList())));
+            }
+            return CommonUtils.convertList(resourceSet,UserMenu.class);
         } catch (Exception e) {
             throw new AuthException(StarterError.SYSTEM_ACCESS_INVALID);
         }
